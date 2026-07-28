@@ -71,6 +71,77 @@ process. No environment variables or secrets are required.
 3. Deploy. Render runs `build.sh` (installs Python deps, builds the
    frontend) then starts `gunicorn app:app`.
 
+### Split deployment: Backend on Render, Frontend on Vercel (recommended)
+
+This repository supports splitting the services: host the backend on Render
+and the frontend on Vercel. Benefits: faster static CDN, separate scaling,
+easy CI.
+
+1. Push this repo to GitHub.
+
+2. Deploy the backend to Render:
+   - New → Web Service → Connect to repo. Render will read `render.yaml`.
+   - In the Render dashboard for the service, set an environment variable:
+     - `ALLOWED_ORIGINS` — comma-separated list of allowed origins for CORS,
+       e.g. `https://your-frontend.vercel.app` (add `http://localhost:5173` for local dev).
+   - Deploy. The backend URL will be something like `https://<your-service>.onrender.com`.
+
+3. Deploy the frontend to Vercel:
+   - Import the `frontend` folder as a new project (set Root Directory to `frontend`).
+   - In Vercel project settings → Environment Variables, add:
+     - `VITE_API_BASE` = `https://<your-service>.onrender.com` (no trailing slash).
+   - Deploy. Vercel will run `npm run build` and serve the static site.
+
+4. Confirm CORS and connectivity:
+   - The backend reads `ALLOWED_ORIGINS` and only accepts requests from the
+     origins you list. Add your Vercel domain to `ALLOWED_ORIGINS` on Render.
+   - The frontend uses `VITE_API_BASE` at build time to call the API.
+
+Local testing with split setup:
+
+```bash
+# Run backend locally
+cd backend
+pip install -r requirements.txt
+gunicorn app:app
+
+# Build frontend using the backend URL
+cd ../frontend
+npm install
+VITE_API_BASE=http://localhost:5000 npm run build
+npm run preview
+```
+
+Files changed for split deployment:
+- `backend/app.py`: CORS locked to `ALLOWED_ORIGINS` env var.
+- `backend/requirements.txt`: added `Flask-Cors`.
+- `frontend/src/api.js`: reads `VITE_API_BASE` at build time.
+- `render.yaml`: backend service definition for Render.
+
+If you want, I can also create a small GitHub Actions workflow to deploy the
+frontend to Vercel automatically on push to `main`.
+
+## CI / Auto-deploy (GitHub Actions)
+
+Two workflows are included to auto-deploy on push to `main`:
+
+- `.github/workflows/deploy-frontend-vercel.yml` — builds `frontend` and deploys to Vercel.
+- `.github/workflows/trigger-render-deploy.yml` — triggers a Render deploy for the backend using the Render API.
+
+To use these workflows, add the following GitHub repository secrets (Repository → Settings → Secrets):
+
+- `VERCEL_TOKEN` — a Vercel Personal Token (create via Vercel Dashboard).
+- `VERCEL_ORG_ID` — your Vercel Organization or Team ID (found in Vercel project settings).
+- `VERCEL_PROJECT_ID` — the Vercel Project ID for the `frontend` project.
+- `RENDER_API_KEY` — a Render API key with `deploy` scope (create in Render Dashboard).
+- `RENDER_SERVICE_ID` — the Render Service ID for your backend service (found in the service settings URL or Render Dashboard).
+
+Notes:
+- The Vercel action used here (`amondnet/vercel-action`) requires the three Vercel secrets above. If you prefer Vercel Git integration (recommended), you can skip the Vercel token secrets — Vercel will auto-deploy on pushes after you connect the repo in their UI.
+- The Render workflow simply calls the Render Deploys API; Render will use `render.yaml` from the repo to perform the build. Alternatively, you can enable Render's native GitHub integration (recommended) and skip the `RENDER_API_KEY`/`RENDER_SERVICE_ID` secrets.
+
+If you want, I can help create the GitHub Secrets values and test a push, but I need access tokens/permissions to do that.
+
 ### Railway / Heroku-style platforms
 The included `Procfile` works out of the box. Set the build command to
 `bash build.sh` (or equivalent buildpack step) if the platform doesn't

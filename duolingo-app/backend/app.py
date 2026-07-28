@@ -1,11 +1,23 @@
 import os
 from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS
 
 import data
 
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
 
 app = Flask(__name__, static_folder=FRONTEND_DIST, static_url_path="")
+
+# Configure CORS origins via environment variable `ALLOWED_ORIGINS`.
+# Format: comma-separated origins, e.g. https://frontend.vercel.app,https://backend.onrender.com
+allowed = os.environ.get("ALLOWED_ORIGINS")
+if allowed:
+    origins = [o.strip() for o in allowed.split(",") if o.strip()]
+else:
+    # sensible defaults for local dev (Vite default port)
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+CORS(app, origins=origins)
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +86,12 @@ def image_check():
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):
+    # If the frontend `dist` directory isn't present (we're deploying frontend separately),
+    # don't attempt to serve static files from here.
+    index_path = os.path.join(app.static_folder, "index.html")
+    if not os.path.isdir(app.static_folder) or not os.path.exists(index_path):
+        return jsonify({"error": "Frontend not served from backend"}), 404
+
     full_path = os.path.join(app.static_folder, path)
     if path and os.path.exists(full_path):
         return send_from_directory(app.static_folder, path)

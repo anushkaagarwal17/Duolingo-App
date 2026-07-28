@@ -6,24 +6,13 @@ import data
 
 app = Flask(__name__)
 
-# Parse ALLOWED_ORIGINS from environment, default to local dev ports & wildcard fallback
-allowed = os.environ.get("ALLOWED_ORIGINS", "")
-if allowed:
-    origins = [o.strip() for o in allowed.split(",") if o.strip()]
-else:
-    origins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ]
-
-# Enable CORS for all routes with support for credentials/headers
-CORS(app, origins=origins, supports_credentials=True)
-
+# Allow requests from any origin (Vercel, Localhost, Mobile, etc.)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route("/")
 def health_check():
     return jsonify({"status": "healthy", "message": "Duolingo Backend API is running"}), 200
+
 
 # ---------------------------------------------------------------------------
 # Grammar & Fun

@@ -83,19 +83,10 @@ def image_check():
 # Serve the built React frontend for every non-API route
 # ---------------------------------------------------------------------------
 
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_frontend(path):
-    # If the frontend `dist` directory isn't present (we're deploying frontend separately),
-    # don't attempt to serve static files from here.
-    index_path = os.path.join(app.static_folder, "index.html")
-    if not os.path.isdir(app.static_folder) or not os.path.exists(index_path):
-        return jsonify({"error": "Frontend not served from backend"}), 404
-
-    full_path = os.path.join(app.static_folder, path)
-    if path and os.path.exists(full_path):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, "index.html")
+# Simple health-check route for root URL
+@app.route("/")
+def home():
+    return jsonify({"status": "healthy", "message": "Duolingo Backend API is running"}), 200
 
 
 if __name__ == "__main__":

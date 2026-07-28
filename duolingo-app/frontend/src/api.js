@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || "https://duolingo-app.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE || "https://duolingo-backend-cihs.onrender.com";
 
 async function request(path, options) {
   const res = await fetch(`${API_BASE}${path}`, {

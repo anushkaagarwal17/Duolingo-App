@@ -1,10 +1,13 @@
 """
 All app content lives in memory as plain Python data structures.
-No database, no external API calls — everything here is static,
-hand-written content that ships with the code.
+No external API calls — grammar/translation/image content is static,
+hand-written content. Open-response answers (translation, image
+description) are scored using a local TF-IDF + cosine similarity
+model (see ml_scorer.py) instead of plain keyword matching.
 """
 
 import random
+from ml_scorer import grade_open_response
 
 # ---------------------------------------------------------------------------
 # Grammar & Fun — fill-in-the-blank and multiple-choice questions
@@ -167,23 +170,13 @@ def check_translation(sentence_id: str, submitted: str):
     if not sentence:
         return None
 
-    submitted_lower = submitted.lower()
-    matched = [kw for kw in sentence["keywords"] if kw.lower() in submitted_lower]
-    missed = [kw for kw in sentence["keywords"] if kw.lower() not in submitted_lower]
-    coverage = len(matched) / len(sentence["keywords"])
-
-    if coverage >= 0.8:
-        verdict = "Great job! Your translation captures the meaning well."
-    elif coverage >= 0.5:
-        verdict = "Good attempt — you got the main idea, but a few details are missing."
-    else:
-        verdict = "Keep practicing — try to include more of the key details below."
+    result = grade_open_response(submitted, sentence["keywords"], min_words=4)
 
     return {
-        "verdict": verdict,
-        "coverage_percent": round(coverage * 100),
-        "matched_keywords": matched,
-        "missed_keywords": missed,
+        "verdict": result["verdict"],
+        "similarity_score": result["similarity_score"],
+        "matched_keywords": result["matched_keywords"],
+        "missed_keywords": result["missed_keywords"],
         "reference": sentence["reference"],
     }
 
@@ -245,9 +238,9 @@ def check_image_description(image_id: str, submitted: str):
     word_count = len(words)
     unique_ratio = round(len(set(words)) / word_count, 2) if word_count else 0
 
-    submitted_lower = submitted.lower()
-    matched = [kw for kw in prompt["keywords"] if kw.lower() in submitted_lower]
-    missed = [kw for kw in prompt["keywords"] if kw.lower() not in submitted_lower]
+    ml_result = grade_open_response(submitted, prompt["keywords"], min_words=15)
+    matched = ml_result["matched_keywords"]
+    missed = ml_result["missed_keywords"]
 
     feedback = []
     if word_count < 15:
@@ -268,6 +261,7 @@ def check_image_description(image_id: str, submitted: str):
     return {
         "word_count": word_count,
         "unique_word_ratio": unique_ratio,
+        "similarity_score": ml_result["similarity_score"],
         "matched_keywords": matched,
         "missed_keywords": missed,
         "feedback": feedback,
